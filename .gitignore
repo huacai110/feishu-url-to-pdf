@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 环境变量（含敏感凭证）
+.env
+
+# Playwright 浏览器缓存（构建时会自动安装）
+.ms-playwright/
+
+# 临时文件
+*.png
+*.pdf
+*.log
+debug_*
+inspect_*
+test_*
+test_output_*
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
