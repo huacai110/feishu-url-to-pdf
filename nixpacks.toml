@@ -1,0 +1,8 @@
+[phases.setup]
+aptPkgs = ["fonts-noto-cjk", "chromium"]
+
+[phases.install]
+cmds = ["python -m venv /app/.venv", "pip install -r requirements.txt", "playwright install chromium"]
+
+[start]
+cmd = "uvicorn app:app --host 0.0.0.0 --port $PORT"
