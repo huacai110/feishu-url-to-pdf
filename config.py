@@ -23,24 +23,37 @@ class Config:
 
     # ── PDF 字体配置 ──────────────────────────────────────────────
     # 优先使用环境变量指定的路径，否则按操作系统自动选择
+    # 最终兜底：项目自带的 fonts/msyh.ttc
     _font_path = os.getenv("FONT_PATH", "")
     _font_bold_path = os.getenv("FONT_BOLD_PATH", "")
+
+    # 项目自带字体路径（打包在 repo 的 fonts/ 目录下）
+    _BUNDLED_FONT = os.path.join(os.path.dirname(__file__), "fonts", "msyh.ttc")
 
     if _font_path and os.path.exists(_font_path):
         FONT_PATH: str = _font_path
     elif os.name == "nt":
         # Windows
         FONT_PATH: str = r"C:\Windows\Fonts\msyh.ttc"
-    else:
-        # Linux (Render.com 等) — fonts-noto-cjk 包
+    elif os.path.exists("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"):
+        # Linux — fonts-noto-cjk 包（标准路径）
         FONT_PATH: str = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+    elif os.path.exists("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"):
+        # Linux — fonts-noto-cjk 包（备选路径）
+        FONT_PATH: str = "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"
+    elif os.path.exists(_BUNDLED_FONT):
+        # 兜底：使用项目自带的字体
+        FONT_PATH: str = _BUNDLED_FONT
+    else:
+        FONT_PATH: str = _BUNDLED_FONT  # 最终兜底，让报错信息更明确
 
     if _font_bold_path and os.path.exists(_font_bold_path):
         FONT_BOLD_PATH: str = _font_bold_path
     elif os.name == "nt":
         FONT_BOLD_PATH: str = r"C:\Windows\Fonts\msyhbd.ttc"
     else:
-        FONT_BOLD_PATH: str = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
+        # Linux 下没有粗体，复用常规字体
+        FONT_BOLD_PATH: str = FONT_PATH
 
     # ── 飞书 API 基础地址 ─────────────────────────────────────────
     FEISHU_BASE_URL: str = "https://open.feishu.cn/open-apis"
