@@ -3,6 +3,7 @@
 负责：Token 管理、消息发送、文件上传
 """
 import time
+import json
 import logging
 import httpx
 from config import Config
@@ -59,7 +60,7 @@ class FeishuAPI:
                 json={
                     "receive_id": chat_id,
                     "msg_type": "text",
-                    "content": f'{{"text":"{text}"}}',
+                    "content": json.dumps({"text": text}),
                 },
             )
             data = resp.json()
@@ -127,7 +128,7 @@ class FeishuAPI:
                 headers=await self._headers(),
                 json={
                     "msg_type": "text",
-                    "content": f'{{"text":"{text}"}}',
+                    "content": json.dumps({"text": text}),
                 },
             )
             data = resp.json()

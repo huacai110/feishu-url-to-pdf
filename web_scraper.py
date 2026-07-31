@@ -114,7 +114,6 @@ class WebScraper:
 
         async with async_playwright() as p:
             browser = await p.chromium.launch(
-                channel="msedge",
                 headless=True,
                 args=["--no-sandbox", "--disable-gpu"],
             )
