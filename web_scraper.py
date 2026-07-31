@@ -196,35 +196,53 @@ class WebScraper:
                 if not title:
                     title = url
 
-                # ── 获取总页数 ──
+                # ─ 获取总页数 ──
                 page_info = await page.evaluate("""
                     () => {
+                        // 策略1: .doc-page-num 元素
                         const docPageNum = document.querySelector('.doc-page-num');
                         if (docPageNum) {
                             const text = docPageNum.textContent?.trim() || '';
                             const m = text.match(/\\d+/);
                             if (m) {
                                 const total = parseInt(m[0]);
-                                if (total > 0 && total <= 100) {
+                                if (total > 0 && total <= 200) {
                                     return { total: total, source: 'doc-page-num' };
                                 }
                             }
                         }
+                        // 策略2: e签宝 .sa-pdf-page 元素数量（最可靠）
+                        const saPages = document.querySelectorAll('.sa-pdf-page');
+                        if (saPages.length > 0) {
+                            return { total: saPages.length, source: 'sa-pdf-page count' };
+                        }
+                        // 策略3: 全文搜索 "共X份" 模式
                         const allText = document.body?.textContent || '';
                         const m1 = allText.match(/共\\d+份[，,]\\s*(\\d+)份签/);
-                        if (m1 && parseInt(m1[1]) > 1 && parseInt(m1[1]) <= 50) {
+                        if (m1 && parseInt(m1[1]) > 1 && parseInt(m1[1]) <= 100) {
                             return { total: parseInt(m1[1]), source: '份签' };
                         }
+                        // 策略4: 搜索 "X / Y" 页码格式
                         const els = document.querySelectorAll('*');
                         for (const el of els) {
                             const text = el.textContent?.trim() || '';
-                            const m2 = text.match(/^\\s*(\\d{1,2})\\s*\\/\\s*(\\d{1,2})\\s*$/);
+                            const m2 = text.match(/^\\s*(\\d{1,3})\\s*\\/\\s*(\\d{1,3})\\s*$/);
                             if (m2) {
                                 const cur = parseInt(m2[1]);
                                 const tot = parseInt(m2[2]);
-                                if (tot > 1 && tot <= 50 && cur <= tot
-                                    && !(cur <= 12 && tot >= 28 && tot <= 31)) {
+                                if (tot > 1 && tot <= 200 && cur <= tot) {
                                     return { current: cur, total: tot, source: 'slash' };
+                                }
+                            }
+                        }
+                        // 策略5: 搜索包含 "页" 字的页码提示，如 "第 1 页 / 共 4 页"
+                        for (const el of els) {
+                            const text = el.textContent?.trim() || '';
+                            const m3 = text.match(/共\\s*(\\d+)\\s*页/);
+                            if (m3) {
+                                const tot = parseInt(m3[1]);
+                                if (tot > 1 && tot <= 200) {
+                                    return { total: tot, source: '共X页' };
                                 }
                             }
                         }
@@ -262,71 +280,77 @@ class WebScraper:
                 logger.info(f"[浏览器] 滚动结果: {scroll_result}")
                 await page.wait_for_timeout(3000)
 
-                # ── 翻页导航：强制加载剩余页面的图片 ──
-                # 滚动可能无法触发所有页面的懒加载，需要逐页点击翻页按钮
+                # ── 翻页导航：持续翻页直到没有新页面出现 ──
+                # 不完全依赖 total_pages，而是持续点击"下一页"直到连续两次没有新图片
                 captured_pages = set(pn for pn, _ in oss_image_urls)
-                logger.info(f"[浏览器] 滚动后已拦截页: {sorted(captured_pages)}, 共 {len(captured_pages)}/{total_pages} 页")
+                logger.info(f"[浏览器] 滚动后已拦截页: {sorted(captured_pages)}")
 
-                if len(captured_pages) < total_pages:
-                    logger.info("[浏览器] 开始翻页导航，强制加载剩余页面...")
-                    for target_page in range(1, total_pages + 1):
-                        if target_page in captured_pages:
-                            continue
+                max_extra_pages = max(total_pages, len(captured_pages)) + 5  # 安全上限
+                no_new_count = 0  # 连续没有新页面的次数
+                click_attempt = 0
 
-                        # 点击下一页按钮
-                        clicked = await page.evaluate("""
-                            () => {
-                                // 尝试多种翻页按钮选择器
-                                const selectors = [
-                                    '.placeholder-btn.next-page',
-                                    '.next-page',
-                                    '[class*="next-page"]',
-                                    'i[class*="arrow-right"]',
-                                    '[class*="page-next"]',
-                                ];
-                                for (const sel of selectors) {
-                                    const btn = document.querySelector(sel);
-                                    if (btn && !btn.className.includes('disabled')
-                                        && !btn.className.includes('active-disabled')) {
-                                        btn.click();
-                                        return sel;
-                                    }
+                while len(captured_pages) < max_extra_pages and no_new_count < 2 and click_attempt < 50:
+                    click_attempt += 1
+
+                    # 点击下一页按钮
+                    clicked = await page.evaluate("""
+                        () => {
+                            const selectors = [
+                                '.placeholder-btn.next-page',
+                                '.next-page',
+                                '[class*="next-page"]',
+                                'i[class*="arrow-right"]',
+                                '[class*="page-next"]',
+                                '[class*="NextPage"]',
+                            ];
+                            for (const sel of selectors) {
+                                const btn = document.querySelector(sel);
+                                if (btn && !btn.className.includes('disabled')
+                                    && !btn.className.includes('active-disabled')) {
+                                    btn.click();
+                                    return sel;
                                 }
-                                // 兜底：找所有箭头图标
-                                const arrows = document.querySelectorAll('i[class*="arrow"]');
-                                for (const a of arrows) {
-                                    if (!a.className.includes('disabled')
-                                        && !a.className.includes('active-disabled')) {
-                                        a.click();
-                                        return 'arrow-fallback';
-                                    }
-                                }
-                                return null;
                             }
-                        """)
+                            const arrows = document.querySelectorAll('i[class*="arrow"]');
+                            for (const a of arrows) {
+                                if (!a.className.includes('disabled')
+                                    && !a.className.includes('active-disabled')) {
+                                    a.click();
+                                    return 'arrow-fallback';
+                                }
+                            }
+                            return null;
+                        }
+                    """)
 
-                        if not clicked:
-                            logger.warning(f"[浏览器] 无法翻到第 {target_page} 页，停止翻页")
-                            break
+                    if not clicked:
+                        logger.info(f"[浏览器] 无更多翻页按钮，停止翻页 (已捕获 {len(captured_pages)} 页)")
+                        break
 
-                        logger.info(f"[浏览器] 已点击翻页按钮 (选择器: {clicked})，等待第 {target_page} 页加载...")
-                        await page.wait_for_timeout(3000)
+                    await page.wait_for_timeout(3000)
 
-                        # 检查是否捕获到新页面的图片
-                        new_captured = set(pn for pn, _ in oss_image_urls)
-                        logger.info(f"[浏览器] 翻页后已拦截页: {sorted(new_captured)}")
+                    new_captured = set(pn for pn, _ in oss_image_urls)
+                    new_pages = new_captured - captured_pages
 
-                        if target_page in new_captured:
-                            logger.info(f"[浏览器] 第 {target_page} 页图片已加载")
+                    if new_pages:
+                        logger.info(f"[浏览器] 翻页后新拦截页: {sorted(new_pages)}, 累计 {len(new_captured)} 页")
+                        captured_pages = new_captured
+                        no_new_count = 0
+                    else:
+                        no_new_count += 1
+                        logger.info(f"[浏览器] 翻页后无新页面 (连续 {no_new_count}/2 次)")
+                        # 再多等一次确认
+                        await page.wait_for_timeout(2000)
+                        newer_captured = set(pn for pn, _ in oss_image_urls)
+                        newer_pages = newer_captured - captured_pages
+                        if newer_pages:
+                            logger.info(f"[浏览器] 延迟后新拦截页: {sorted(newer_pages)}")
+                            captured_pages = newer_captured
+                            no_new_count = 0
                         else:
-                            # 再多等一下，有些页面加载较慢
-                            await page.wait_for_timeout(2000)
-                            new_captured = set(pn for pn, _ in oss_image_urls)
-                            if target_page not in new_captured:
-                                logger.warning(f"[浏览器] 第 {target_page} 页图片仍未加载")
+                            logger.info(f"[浏览器] 延迟后仍无新页面")
 
-                    logger.info(f"[浏览器] 翻页导航完成，共拦截到 {len(oss_image_urls)} 个 OSS 图片 URL")
-
+                logger.info(f"[浏览器] 翻页导航完成，共拦截到 {len(oss_image_urls)} 个 OSS 图片 URL")
                 logger.info(f"[浏览器] 最终共拦截到 {len(oss_image_urls)} 个 OSS 图片 URL")
 
                 page_images = []
