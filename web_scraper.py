@@ -18,6 +18,45 @@ URL_PATTERN = re.compile(
     r"https?://[^\s<>\"'\)\]）】，。、；：！？\u3000]+"
 )
 
+
+def _find_chromium_executable() -> str:
+    """
+    在 Playwright 缓存目录中查找 Chromium/Chrome 可执行文件。
+    解决 playwright install chromium 下载 headless shell 但路径不匹配的问题。
+    """
+    cache_dir = os.path.expanduser("~/.cache/ms-playwright")
+    if not os.path.isdir(cache_dir):
+        return ""  # 回退到默认路径
+
+    # 可能的可执行文件名
+    candidate_names = [
+        "chrome-headless-shell",
+        "chrome",
+        "chromium",
+        "chrome-headless-shell-linux64",
+    ]
+
+    # 搜索所有子目录
+    for root, dirs, files in os.walk(cache_dir):
+        for name in candidate_names:
+            if name in files:
+                full_path = os.path.join(root, name)
+                # 确保是可执行文件
+                if os.access(full_path, os.X_OK):
+                    logger.info(f"[Chromium] 找到可执行文件: {full_path}")
+                    return full_path
+
+    # 如果没找到精确匹配，尝试找任何 chrome* 文件
+    for root, dirs, files in os.walk(cache_dir):
+        for f in files:
+            if f.startswith("chrome") and os.access(os.path.join(root, f), os.X_OK):
+                full_path = os.path.join(root, f)
+                logger.info(f"[Chromium] 兜底找到: {full_path}")
+                return full_path
+
+    logger.warning("[Chromium] 未找到可执行文件，将使用默认路径")
+    return ""
+
 # 需要用浏览器渲染的域名/关键词
 BROWSER_DOMAINS = [
     "esign.cn",
@@ -113,10 +152,16 @@ class WebScraper:
         pdf_path = None
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(
-                headless=True,
-                args=["--no-sandbox", "--disable-gpu"],
-            )
+            # 自动查找 Chromium 可执行文件路径（解决 headless shell 路径不匹配问题）
+            chromium_path = _find_chromium_executable()
+            launch_kwargs = {
+                "headless": True,
+                "args": ["--no-sandbox", "--disable-gpu"],
+            }
+            if chromium_path:
+                launch_kwargs["executable_path"] = chromium_path
+
+            browser = await p.chromium.launch(**launch_kwargs)
             page = await browser.new_page(
                 viewport={"width": 1280, "height": 900}
             )

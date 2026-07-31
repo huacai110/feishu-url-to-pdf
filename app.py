@@ -232,7 +232,7 @@ async def health():
 async def index():
     return {
         "service": "Feishu URL-to-PDF Bot",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "endpoints": {
             "webhook": "/webhook/event",
             "health": "/health",
