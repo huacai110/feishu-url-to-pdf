@@ -36,23 +36,26 @@ def _find_chromium_executable() -> str:
         "chrome-headless-shell-linux64",
     ]
 
-    # 搜索所有子目录
+    # 搜索所有子目录（不检查执行权限，只要文件存在就用）
     for root, dirs, files in os.walk(cache_dir):
         for name in candidate_names:
             if name in files:
                 full_path = os.path.join(root, name)
-                # 确保是可执行文件
-                if os.access(full_path, os.X_OK):
+                if os.path.isfile(full_path):
+                    # 确保有执行权限
+                    os.chmod(full_path, 0o755)
                     logger.info(f"[Chromium] 找到可执行文件: {full_path}")
                     return full_path
 
     # 如果没找到精确匹配，尝试找任何 chrome* 文件
     for root, dirs, files in os.walk(cache_dir):
         for f in files:
-            if f.startswith("chrome") and os.access(os.path.join(root, f), os.X_OK):
+            if f.startswith("chrome"):
                 full_path = os.path.join(root, f)
-                logger.info(f"[Chromium] 兜底找到: {full_path}")
-                return full_path
+                if os.path.isfile(full_path):
+                    os.chmod(full_path, 0o755)
+                    logger.info(f"[Chromium] 兜底找到: {full_path}")
+                    return full_path
 
     logger.warning("[Chromium] 未找到可执行文件，将使用默认路径")
     return ""
