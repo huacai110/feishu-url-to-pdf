@@ -35,17 +35,17 @@ class Config:
     elif os.name == "nt":
         # Windows
         FONT_PATH: str = r"C:\Windows\Fonts\msyh.ttc"
+    elif os.path.exists(_BUNDLED_FONT):
+        # 优先使用项目自带的 msyh.ttc（reportlab 兼容）
+        FONT_PATH: str = _BUNDLED_FONT
     elif os.path.exists("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"):
-        # Linux — fonts-noto-cjk 包（标准路径）
+        # Linux — fonts-noto-cjk 包（标准路径，仅兜底）
         FONT_PATH: str = "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"
     elif os.path.exists("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"):
-        # Linux — fonts-noto-cjk 包（备选路径）
+        # Linux — fonts-noto-cjk 包（备选路径，仅兜底）
         FONT_PATH: str = "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"
-    elif os.path.exists(_BUNDLED_FONT):
-        # 兜底：使用项目自带的字体
-        FONT_PATH: str = _BUNDLED_FONT
     else:
-        FONT_PATH: str = _BUNDLED_FONT  # 最终兜底，让报错信息更明确
+        FONT_PATH: str = _BUNDLED_FONT  # 最终兜底
 
     if _font_bold_path and os.path.exists(_font_bold_path):
         FONT_BOLD_PATH: str = _font_bold_path
