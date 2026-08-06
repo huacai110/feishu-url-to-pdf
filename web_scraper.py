@@ -190,7 +190,7 @@ class WebScraper:
 
                 await page.goto(url, wait_until="domcontentloaded", timeout=30000)
                 logger.info("[浏览器] 等待 JS 渲染完成")
-                await page.wait_for_timeout(5000)
+                await page.wait_for_timeout(2000)
 
                 title = await page.title()
                 if not title:
@@ -267,18 +267,18 @@ class WebScraper:
                         while (currentScroll < scrollHeight) {
                             currentScroll += step;
                             pdfView.scrollTop = currentScroll;
-                            await new Promise(r => setTimeout(r, 400));
+                            await new Promise(r => setTimeout(r, 200));
                         }
 
                         pdfView.scrollTop = 0;
-                        await new Promise(r => setTimeout(r, 1000));
+                        await new Promise(r => setTimeout(r, 500));
 
                         const pages = document.querySelectorAll('.sa-pdf-page');
                         return { scrolled: true, pages_after_scroll: pages.length, scrollHeight };
                     }
                 """)
                 logger.info(f"[浏览器] 滚动结果: {scroll_result}")
-                await page.wait_for_timeout(3000)
+                await page.wait_for_timeout(1500)
 
                 # ── 翻页导航：持续翻页直到没有新页面出现 ──
                 # 不完全依赖 total_pages，而是持续点击"下一页"直到连续两次没有新图片
@@ -327,7 +327,7 @@ class WebScraper:
                         logger.info(f"[浏览器] 无更多翻页按钮，停止翻页 (已捕获 {len(captured_pages)} 页)")
                         break
 
-                    await page.wait_for_timeout(3000)
+                    await page.wait_for_timeout(1500)
 
                     new_captured = set(pn for pn, _ in oss_image_urls)
                     new_pages = new_captured - captured_pages
@@ -340,7 +340,7 @@ class WebScraper:
                         no_new_count += 1
                         logger.info(f"[浏览器] 翻页后无新页面 (连续 {no_new_count}/2 次)")
                         # 再多等一次确认
-                        await page.wait_for_timeout(2000)
+                        await page.wait_for_timeout(1000)
                         newer_captured = set(pn for pn, _ in oss_image_urls)
                         newer_pages = newer_captured - captured_pages
                         if newer_pages:
@@ -431,7 +431,7 @@ class WebScraper:
                         }
                         body { margin: 0 !important; padding: 0 !important; overflow: hidden !important; }
                     """)
-                    await page.wait_for_timeout(1500)
+                    await page.wait_for_timeout(800)
 
                     prev_screenshot_size = 0
                     duplicate_count = 0
@@ -447,7 +447,7 @@ class WebScraper:
                             if not clicked:
                                 logger.warning(f"[浏览器] 无法翻到第 {i} 页")
                                 break
-                            await page.wait_for_timeout(2000)
+                            await page.wait_for_timeout(1000)
 
                         screenshot = await page.screenshot(type="png")
                         page_images.append(screenshot)
