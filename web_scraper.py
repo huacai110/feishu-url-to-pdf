@@ -190,7 +190,7 @@ class WebScraper:
 
                 await page.goto(url, wait_until="domcontentloaded", timeout=30000)
                 logger.info("[浏览器] 等待 JS 渲染完成")
-                await page.wait_for_timeout(2000)
+                await page.wait_for_timeout(3000)
 
                 title = await page.title()
                 if not title:
@@ -375,6 +375,10 @@ class WebScraper:
                             try:
                                 resp = await client.get(img_url)
                                 resp.raise_for_status()
+                                # 图片太小可能是空白或错误响应，跳过
+                                if len(resp.content) < 5000:
+                                    logger.warning(f"[浏览器] 第 {page_num} 页图片过小 ({len(resp.content)} bytes)，跳过")
+                                    continue
                                 page_images.append(resp.content)
                                 logger.info(f"[浏览器] 第 {page_num} 页图片下载完成 ({len(resp.content)} bytes)")
                             except Exception as e:
